@@ -1,0 +1,11 @@
+#!/bin/bash
+for i in $(find $(./scripts/technique-files) -type f -name '*.st')
+do
+	./report.pl $i > ${i}.new
+	if [ $? -ne 0 ]
+  then
+    rm ${i}.new
+  else
+    mv ${i}.new $i
+	fi
+done

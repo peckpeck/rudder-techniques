@@ -1,0 +1,133 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+
+my $exit = 0;
+
+# ordering from cfengine documentation
+# convert to a hash { promise_type => order_id }
+my $orderings = {
+  agent => make_hash(qw/meta vars defaults classes files packages guest_environments methods processes services commands storage databases reports/),
+  edit_line => make_hash(qw/meta vars defaults classes delete_lines field_edits insert_lines replace_patterns reports/),
+  server => make_hash(qw/vars classes access roles/),
+  monitor => make_hash(qw/vars classes measurements reports/),
+  common => make_hash(qw/vars classes reports/),
+};
+
+while(my $file = shift @ARGV) {
+  check_ordering($file);
+}
+exit $exit;
+
+sub check_ordering {
+  # open file
+  my $filename = shift;
+  my @content=();
+  my @line_order=(0);
+  my $line_id=-1;
+  my $change_line_id=0;
+  my $ko=0;
+  my $changing=0;
+
+
+  open(my $fh, "<$filename") or die "Can't open file $filename";
+
+  # work variables
+  my $bundle = "unknown";
+  my $bundle_type = "unknown";
+  my $type = "";
+  my $prev_if=0;
+  my $prev_comment=0;
+  
+  # scan the file
+  while(my $line = <$fh>) {
+    push @content, $line;
+    $line_id++ unless ($prev_if || $prev_comment);
+    my $comment_line = $line;
+
+    $line =~ s/#.*//;
+  
+    if($line =~ /^\s*bundle\s+(\w+)\s+(\w+)/) {
+    # detect bundles
+  
+      $bundle_type = $1;
+      $bundle = $2;
+      $type = "";
+  
+    } elsif($line =~ /\W(\w+):\s*$/) {
+    # detect promise type
+      if($changing) {
+        push @line_order, $line_id;
+        $changing=0;
+      }
+  
+      my $new_type = $1;
+      if($type ne "") {
+  
+        # check ordering
+        die "Unknown bundle type $bundle_type" unless exists $orderings->{$bundle_type};
+        my $ordering = $orderings->{$bundle_type};
+        if (!exists($ordering->{$type})){
+          print "Unknown promise type '$type' in '$filename' for 'bundle $bundle_type $bundle'\n";
+        } elsif (!exists($ordering->{$new_type})){
+          print "Unknown promise type '$new_type' in '$filename' for 'bundle $bundle_type $bundle'\n";
+        } elsif($ordering->{$type} > $ordering->{$new_type} && !$ko) {
+          print "Error in '$filename' in 'bundle $bundle_type $bundle' : $type before $new_type\n";
+          push @line_order, $change_line_id;
+          push @line_order, $line_id;
+          $ko=1;
+          $changing=1;
+          $exit++;
+        }
+  
+      }
+      $change_line_id=$line_id;
+      $type = $new_type;
+    } elsif($line =~ /^\s*\}\s*$/) {
+      if($changing) {
+        push @line_order, $line_id;
+        $changing=0;
+      }
+    }
+    
+    $line_id++ if($prev_comment);
+    if($comment_line =~ /^\s*#/) {
+      $prev_comment=1;
+    } else {
+      $prev_comment=0;
+    }
+    $line_id++ if($prev_if);
+    if($line =~ /&if/) {
+      $prev_if=1;
+    } else {
+      $prev_if=0;
+    }
+ }
+ close($fh);
+
+ if($ko) {
+  print join(",", @line_order)."\n";
+    open(my $fh, ">${filename}.2") or die "Can't open file ${filename}.2";
+    my $start_ok = shift @line_order;
+    while(scalar(@line_order) != 0) {
+      my $start_ko = shift @line_order;
+      my $stop_ko = shift @line_order;
+      my $start_revert = shift @line_order;
+      print "$start_ok -> $start_ko -> $stop_ko -> $start_revert\n";
+      print $fh @content[$start_ok..$start_ko-1];
+      print $fh @content[$stop_ko..$start_revert-1];
+      print $fh @content[$start_ko..$stop_ko-1];
+      $start_ok = $start_revert;
+    }
+    my $len = scalar(@content);
+    print $fh @content[$start_ok..$len-1];
+  close($fh);
+  }
+}
+
+sub make_hash {
+  my $i=1;
+  my %ordering = map { $_ => $i++ } @_;
+  return \%ordering;
+}
+

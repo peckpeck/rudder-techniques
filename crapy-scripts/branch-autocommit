@@ -1,0 +1,16 @@
+#!/bin/bash
+
+branch=$1
+bug=$2
+
+nrmpull $branch
+text="$(rmbt $bug)"
+./do
+git add techniques
+commit=$(echo "$text" | grep commit)
+bash -c "$commit"
+./dopar
+git add techniques
+git commit -m "Refs #5446: Rewrite techniques to use only \${}"
+push=$(echo "$text" | grep push)
+bash -c "$push"

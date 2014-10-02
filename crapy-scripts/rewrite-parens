@@ -1,0 +1,11 @@
+#!/bin/bash
+
+base=techniques
+#for file in $(./scripts/technique-files -f '*.st' -f '*.cf' -l -s "grep '\$(' {}" $base | grep -v "/system/" |  grep -v downloadFile | grep -v cfengine_stdlib)
+for file in $(./scripts/technique-files -f '*.st' -f '*.cf' -l -s "grep '\$(' {}" $base | grep "/system/" | grep -v cfengine_stdlib)
+do
+  for i in $(seq 1 4)
+  do
+    sed -i 's/$(\([^()]*\))/${\1}/g' $file
+  done
+done

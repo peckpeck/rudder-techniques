@@ -1,0 +1,16 @@
+#!/bin/bash
+
+base=techniques
+
+for i in $(seq 1 7)
+do
+  #./scripts/technique-files -l -f '*.st' -f '*.cf' -s '! ./scripts/ordering.pl {} ' $base | grep -v '/system/' | grep -v cfengine_stdlib | xargs ./change_ordering
+  ./scripts/technique-files -l -f '*.st' -f '*.cf' -s '! ./scripts/ordering.pl {} ' $base | grep '/system/'  | grep -v cfengine_stdlib| xargs ./change_ordering
+  for i in $(find $base -type f | grep '.2$'); do b=$(basename $i .2); d=$(dirname $i); mv $i $d/$b; done
+done
+
+git diff $base | grep '^\+' > /tmp/plus
+git diff $base | grep '^\-' > /tmp/moins
+perl -i -pe 's/^[-+]//' /tmp/plus  /tmp/moins
+wc /tmp/plus  /tmp/moins
+
