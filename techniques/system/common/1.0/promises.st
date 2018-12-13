@@ -25,7 +25,6 @@ bundle common rudder_roles
 {
   vars:
     # moved from bundle common g since they need to be defined in promises.cf
-    any::
       "uuid_file"         string => "/opt/rudder/etc/uuid.hive";
       "uuid"              string => readfile("${uuid_file}", 60);
 
